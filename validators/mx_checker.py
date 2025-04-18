@@ -1,9 +1,13 @@
 import asyncio
+import sys
 import aiodns
 import tldextract
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+if sys.platform.startswith("win"):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 __all__ = ["check_mx_records"]
 
@@ -31,7 +35,7 @@ async def check_mx_records(domain: str):
         domain = domain.replace("http://", "").replace("https://", "").replace("www.", "")
         logger.info(f"🔎 Checking MX records for: {domain}")
 
-        resolver = aiodns.DNSResolver(timeout=5)
+        resolver = aiodns.DNSResolver(nameservers=["8.8.8.8", "8.8.4.4"], timeout=5)
 
         response = await asyncio.wait_for(resolver.query(domain, "MX"), timeout=5)
 
