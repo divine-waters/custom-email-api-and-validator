@@ -1,4 +1,4 @@
-# ️ SQL | 🟠 HubSpot | 🚀 FastAPI | 🐍 Python**
+# ️ SQL | 🟠 HubSpot | 🚀 FastAPI | 🐍 Python
 
 ##  Custom Email API & HubSpot Contact Sync 🔄
 
@@ -39,11 +39,9 @@ Before you begin, ensure you have met the following requirements:
     ```
 
 3.  **Install dependencies:**
-    *(Assuming you have a `requirements.txt` file)*
     ```bash
     pip install -r requirements.txt
     ```
-    *If you don't have a `requirements.txt` yet, you'll need to create one based on the imports in your Python files (e.g., `requests` for HubSpot client, `pyodbc` or similar for SQL Server, etc.).*
 
 4.  **Database Setup:**
     *   Ensure your SQL Server instance is running.
@@ -71,6 +69,7 @@ DB_USER=your_database_username
 DB_PASSWORD=your_database_password
 # Alternatively, provide a full connection string if your db module expects that:
 # DATABASE_URL='mssql+pyodbc://your_username:your_password@your_server_name/hubspot_contacts?driver=ODBC+Driver+17+for+SQL+Server'
+```
 
 Ensure your Python code (e.g., in `hubspot_client` and `db` modules) is configured to read these environment variables (e.g., using `python-dotenv` and `os.getenv`).
 
@@ -82,28 +81,23 @@ To fetch contacts from HubSpot and insert/update them in your database, run the 
 
 ```bash
 python sync_contacts.py
+```
 
 This script will:
 
 Call the HubSpot API via hubspot_client.contacts_client.fetch_hubspot_contacts().
 Pass the retrieved contacts to db.email_dao.insert_contacts() for database insertion.
 Log activities using the configured logger.
-Email Validation
-The create_validation_table.sql script sets up the validation_results table to store validation outcomes. The actual process for performing the validation and populating this table would likely involve:
-
-Retrieving contacts from the database (either newly synced or all contacts).
-Using an email validation service or library (e.g., AbstractAPI, ZeroBounce, or custom checks) for each email.
-Storing the results (validity status, MX check, disposable status, etc.) in the validation_results table, linking back to the contact via contact_id.
-(The script/module responsible for performing the validation step is not included in the provided context but is a core intended function based on the database schema).
 
 ### Email Validation
 
 The create_validation_table.sql script sets up the validation_results table to store validation outcomes. The actual process for performing the validation and populating this table would likely involve:
 
-Retrieving contacts from the database (either newly synced or all contacts).
-Using an email validation service or library (e.g., AbstractAPI, ZeroBounce, or custom checks) for each email.
-Storing the results (validity status, MX check, disposable status, etc.) in the validation_results table, linking back to the contact via contact_id.
-(The script/module responsible for performing the validation step is not included in the provided context but is a core intended function based on the database schema).
+1. Retrieving contacts from the database (either newly synced or all contacts).
+2. Using an email validation service or library (e.g., AbstractAPI, ZeroBounce, or custom checks) for each email.
+3. Storing the results (validity status, MX check, disposable status, etc.) in the validation_results table, linking back to the contact via contact_id.
+_(The script/module responsible for performing the validation step is not included in the provided context but is a core intended function based on the database schema)._
+
 
 ### 📁 Project Structure (Example)
 
@@ -128,9 +122,12 @@ custom-email-api/
 │   └── logger.py       # 📝 Logging setup
 │
 └── venv/               # 🌱 Virtual environment directory (if used)
+```
 
 ### 🤝 Contributing
+
 Contributions are welcome! Please follow standard Git workflow (fork, branch, pull request). Ensure code is formatted, tested (if applicable), and follows the project's conventions.
 
 ### 📜 License
+
 MIT
