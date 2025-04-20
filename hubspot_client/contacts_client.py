@@ -74,9 +74,9 @@ def _handle_api_exception(e: Exception, context: str):
     if status_code == 401:
         raise HubSpotAuthenticationError(original_exception=e) from e
     elif status_code == 403:
-         # Often permissions related, treat similar to auth error for simplicity or create specific one
-         # Corrected indentation (4 spaces)
-         raise HubSpotAuthenticationError(message=f"HubSpot Forbidden (403) during {context}", status_code=status_code, original_exception=e) from e
+        # Often permissions related, treat similar to auth error for simplicity or create specific one
+        # Corrected indentation (4 spaces)
+        raise HubSpotAuthenticationError(message=f"HubSpot Forbidden (403) during {context}", status_code=status_code, original_exception=e) from e
     elif status_code == 404:
         # Corrected indentation (4 spaces)
         raise HubSpotNotFoundError(original_exception=e) from e
@@ -85,10 +85,10 @@ def _handle_api_exception(e: Exception, context: str):
     elif status_code == 429:
         raise HubSpotRateLimitError(original_exception=e) from e
     elif status_code == 400:
-         raise HubSpotBadRequestError(original_exception=e) from e
+        raise HubSpotBadRequestError(original_exception=e) from e
     elif status_code and status_code >= 500:
-         # Corrected indentation (4 spaces)
-         raise HubSpotServerError(original_exception=e) from e
+        # Corrected indentation (4 spaces)
+        raise HubSpotServerError(original_exception=e) from e
     else:
         # Fallback for unhandled status codes or missing status
         # Corrected indentation (4 spaces)
@@ -143,8 +143,8 @@ def create_email_validation_property():
                     # Re-raise other API errors using the handler
                     _handle_api_exception(e, f"creating property '{name}'")
             except Exception as e: # Catch other unexpected errors during creation
-                 # Corrected indentation (8 spaces)
-                 _handle_api_exception(e, f"creating property '{name}'")
+                # Corrected indentation (8 spaces)
+                _handle_api_exception(e, f"creating property '{name}'")
 
 
         logger.info(f"🔧 HubSpot property check complete. Created: {created_count}, Skipped/Existing: {skipped_count}")
@@ -240,10 +240,10 @@ def update_contact_with_validation_result(contact_id: str, validation_properties
         logger.debug(f"Original update data: {validation_properties}, Filtered update data: {update_data}")
 
     if not update_data:
-         logger.warning(f"No valid properties provided to update for contact {contact_id}. Skipping update.")
-         # Return something indicating no update occurred, or raise specific error?
-         # For now, let's return None, caller should handle.
-         return None # Or maybe raise ValueError("No valid properties to update")
+        logger.warning(f"No valid properties provided to update for contact {contact_id}. Skipping update.")
+        # Return something indicating no update occurred, or raise specific error?
+        # For now, let's return None, caller should handle.
+        return None # Or maybe raise ValueError("No valid properties to update")
 
     contact_input = SimplePublicObjectInput(properties=update_data)
 

@@ -145,31 +145,35 @@ async def validate_and_sync(email: str, contact_id: str = None) -> dict:
                 # Continue to HubSpot update attempt even if DB save fails? Yes.
 
             # --- Try HubSpot Update ---
-            # Let's attempt HubSpot update regardless of DB save status for now.
             try:
                 logger.debug(f"Attempting HubSpot update for contact {contact_id}")
                 # Prepare data for HubSpot - use keys defined in hubspot_client.VALIDATION_PROPERTIES
+                # --- MODIFIED HERE ---
                 hubspot_update_data = {
-                    "email_valid_mx": str(validation_result["mx_valid"]),
-                    "email_is_disposable": str(validation_result["is_disposable"]),
-                    "email_is_blacklisted": str(validation_result["is_blacklisted"]),
-                    "email_is_free_provider": str(validation_result["is_free_provider"]),
+                    # Convert Python bool to lowercase string "true" or "false"
+                    "email_valid_mx": str(validation_result["mx_valid"]).lower(),
+                    "email_is_disposable": str(validation_result["is_disposable"]).lower(),
+                    "email_is_blacklisted": str(validation_result["is_blacklisted"]).lower(),
+                    "email_is_free_provider": str(validation_result["is_free_provider"]).lower(),
+                    # Status and message are already strings
                     "email_validation_status": validation_result["status"],
                     "email_validation_message": validation_result["message"]
                 }
+                # --- END MODIFICATION ---
 
                 # Run the synchronous HubSpot update function in an executor
                 update_func = functools.partial(update_contact_with_validation_result, contact_id, hubspot_update_data)
                 hubspot_api_response = await loop.run_in_executor(None, update_func)
 
+
                 # Check if the update function returned None (e.g., if no valid properties were provided)
                 if hubspot_api_response is None:
-                     logger.warning(f"HubSpot update skipped for contact {contact_id} (likely no valid properties).")
-                     # Decide if this constitutes a sync error
-                     # sync_error_message = sync_error_message or "HubSpot update skipped (no valid properties)." # Append if DB error already exists
+                    logger.warning(f"HubSpot update skipped for contact {contact_id} (likely no valid properties).")
+                    # Decide if this constitutes a sync error
+                    # sync_error_message = sync_error_message or "HubSpot update skipped (no valid properties)." # Append if DB error already exists
                 else:
-                     logger.info(f"🔄 HubSpot contact {contact_id} updated successfully.")
-                     # hubspot_updated = True # REMOVED - Unused assignment
+                    logger.info(f"🔄 HubSpot contact {contact_id} updated successfully.")
+                    # hubspot_updated = True # REMOVED - Unused assignment
 
             # --- Catch Specific HubSpot Errors ---
             except HubSpotAuthenticationError as e:
@@ -216,5 +220,5 @@ async def validate_and_sync(email: str, contact_id: str = None) -> dict:
         }
         # Add sync_error if it happened before the orchestration failure
         if sync_error_message:
-             error_result["sync_error"] = sync_error_message
+            error_result["sync_error"] = sync_error_message
         return error_result

@@ -16,7 +16,7 @@ from hubspot_client.contacts_client import (
 # Import custom HubSpot exceptions
 from hubspot_client.exceptions import (
     HubSpotError, HubSpotAuthenticationError, HubSpotRateLimitError,
-    HubSpotNotFoundError, HubSpotBadRequestError, HubSpotConflictError, HubSpotServerError
+    HubSpotBadRequestError, HubSpotConflictError, HubSpotServerError
 )
 # Import DAO for DB operations within upsert
 from db.email_dao import save_validation_result as db_save_validation_result
@@ -75,9 +75,9 @@ async def validate_email_endpoint(email: str = Query(...)):
 
     # If the validation itself failed (not sync), it might be reflected in status
     if validation_result.get("status") == "error":
-         logger.warning(f"Validation failed for {email}: {validation_result.get('message')}")
-         # Consider returning a different HTTP status code if validation fails?
-         # raise HTTPException(status_code=400, detail=validation_result)
+        logger.warning(f"Validation failed for {email}: {validation_result.get('message')}")
+        # Consider returning a different HTTP status code if validation fails?
+        # raise HTTPException(status_code=400, detail=validation_result)
 
     return validation_result
 
@@ -162,29 +162,29 @@ async def validate_email_and_update_hubspot_endpoint(contact_id: str, email: str
 
     # Check if the validation part itself failed (e.g., bad email format)
     if validation_result.get("status") == "error" and "Orchestration failed" not in validation_result.get("message", ""):
-         logger.warning(f"Validation failed for {email}: {validation_result['message']}")
-         # Return 400 Bad Request if the input email validation failed
-         raise HTTPException(status_code=400, detail=validation_result)
+        logger.warning(f"Validation failed for {email}: {validation_result['message']}")
+        # Return 400 Bad Request if the input email validation failed
+        raise HTTPException(status_code=400, detail=validation_result)
 
     # Check if the orchestration (e.g., unexpected error in validate_and_sync) failed
     if "Orchestration failed" in validation_result.get("message", ""):
-         logger.error(f"Orchestration failed for {email} / {contact_id}: {validation_result['message']}")
-         raise HTTPException(status_code=500, detail="Internal server error during validation process.")
+        logger.error(f"Orchestration failed for {email} / {contact_id}: {validation_result['message']}")
+        raise HTTPException(status_code=500, detail="Internal server error during validation process.")
 
     # Check if there was a specific error during the sync (DB/HubSpot update) part
     if "sync_error" in validation_result:
-         sync_error_msg = validation_result['sync_error']
-         logger.error(f"Sync error occurred for contact {contact_id}: {sync_error_msg}")
-         # Return a 502 Bad Gateway if the sync with HubSpot/DB failed
-         # We could potentially check the sync_error_msg for specific HubSpot error types
-         # but for simplicity, a general 502 might suffice here.
-         raise HTTPException(status_code=502, detail=f"Sync Failed: {sync_error_msg}")
-         # Or return 200/202 with error details in body:
-         # return {
-         #     "message": f"Validation completed for {email}, but failed to sync results for contact {contact_id}.",
-         #     "validation_result": validation_result,
-         #     "sync_error": sync_error_msg
-         # }
+        sync_error_msg = validation_result['sync_error']
+        logger.error(f"Sync error occurred for contact {contact_id}: {sync_error_msg}")
+        # Return a 502 Bad Gateway if the sync with HubSpot/DB failed
+        # We could potentially check the sync_error_msg for specific HubSpot error types
+        # but for simplicity, a general 502 might suffice here.
+        raise HTTPException(status_code=502, detail=f"Sync Failed: {sync_error_msg}")
+        # Or return 200/202 with error details in body:
+        # return {
+        #     "message": f"Validation completed for {email}, but failed to sync results for contact {contact_id}.",
+        #     "validation_result": validation_result,
+        #     "sync_error": sync_error_msg
+        # }
 
     logger.info(f"✅ Successfully validated {email} and updated contact {contact_id}.")
     return {
@@ -237,11 +237,11 @@ async def upsert_contact_endpoint(email: str, firstname: str = "", lastname: str
         logger.warning(f"🚦 HubSpot Rate Limit hit during upsert for {email}: {e}")
         raise HTTPException(status_code=429, detail=f"Too Many Requests: HubSpot Rate Limit Exceeded.")
     except HubSpotBadRequestError as e:
-         logger.error(f"📉 HubSpot Bad Request during upsert for {email}: {e}")
-         raise HTTPException(status_code=400, detail=f"Bad Request: Invalid data for HubSpot upsert.")
+        logger.error(f"📉 HubSpot Bad Request during upsert for {email}: {e}")
+        raise HTTPException(status_code=400, detail=f"Bad Request: Invalid data for HubSpot upsert.")
     except HubSpotConflictError as e: # e.g., if trying to create an existing email without proper upsert logic
-         logger.warning(f"👥 HubSpot Conflict during upsert for {email}: {e}")
-         raise HTTPException(status_code=409, detail=f"Conflict: HubSpot resource conflict during upsert.")
+        logger.warning(f"👥 HubSpot Conflict during upsert for {email}: {e}")
+        raise HTTPException(status_code=409, detail=f"Conflict: HubSpot resource conflict during upsert.")
     except HubSpotServerError as e:
         logger.error(f"💥 HubSpot Server Error during upsert for {email}: {e}")
         raise HTTPException(status_code=503, detail=f"Service Unavailable: HubSpot Server Error.")
@@ -265,12 +265,12 @@ async def upsert_contact_endpoint(email: str, firstname: str = "", lastname: str
                 db_save_func = functools.partial(db_save_validation_result, validation_result, contact_id)
                 await loop.run_in_executor(None, db_save_func)
             except Exception as db_err:
-                 # Log DB error but don't fail the request, as HubSpot upsert succeeded
-                 logger.error(f"💥 Failed to save validation result to DB for contact {contact_id} after upsert: {db_err}", exc_info=True)
-                 # Optionally add a warning to the response
-                 hubspot_response["db_save_warning"] = f"Failed to save validation result locally: {db_err}"
+                # Log DB error but don't fail the request, as HubSpot upsert succeeded
+                logger.error(f"💥 Failed to save validation result to DB for contact {contact_id} after upsert: {db_err}", exc_info=True)
+                # Optionally add a warning to the response
+                hubspot_response["db_save_warning"] = f"Failed to save validation result locally: {db_err}"
         else:
-             logger.warning(f"Could not save validation result to DB for {email}: HubSpot ID not found in response: {hubspot_response}")
+            logger.warning(f"Could not save validation result to DB for {email}: HubSpot ID not found in response: {hubspot_response}")
     else:
         logger.warning(f"Could not save validation result to DB for {email}: Invalid or missing HubSpot response.")
 

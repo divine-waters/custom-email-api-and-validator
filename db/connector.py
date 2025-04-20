@@ -62,7 +62,3 @@ def get_db_connection():
         if conn:
             logger.debug("Closing database connection.")
             conn.close()
-
-# --- REMOVED DAO FUNCTIONS ---
-# All fetch/save functions previously here have been moved to email_dao.py
-# or removed if duplicated.

@@ -4,7 +4,7 @@ import asyncio
 import functools
 from db.connector import get_db_connection # Correctly import from the connector
 from utils.logger import get_logger
-from typing import List, Tuple, Optional, Dict, Any # Added type hints
+from typing import List, Tuple, Dict, Any # Added type hints
 
 logger = get_logger("email_dao")
 
@@ -19,8 +19,7 @@ def insert_contacts(contacts: List[Dict[str, Any]]):
         logger.warning("No contacts provided to insert_contacts.")
         return
 
-    inserted_count = 0
-    updated_count = 0
+    # Removed unused variables: inserted_count, updated_count
     error_count = 0
 
     with get_db_connection() as conn:
@@ -68,12 +67,15 @@ def insert_contacts(contacts: List[Dict[str, Any]]):
 
             conn.commit()
             # Log summary - precise counts might require more logic
+            # The log message correctly reflects the available information
             logger.info(f"Contact sync complete. Processed: {len(contacts)}, Errors: {error_count}.")
 
         except Exception as e:
             logger.error(f"Critical error during batch contact insert/update: {e}")
             conn.rollback() # Rollback the whole batch on critical error
         # No finally block needed for cursor close when using 'with get_db_connection()'
+
+# ... (rest of the file remains the same) ...
 
 def _fetch_all_contacts_sync() -> List[Tuple[str, str, str, str]]:
     """Synchronous helper to fetch all contacts."""
@@ -177,5 +179,4 @@ def save_validation_result(validation_result: Dict[str, Any], contact_id: str):
             conn.rollback() # Rollback on error
         # No finally block needed for cursor close
 
-# --- REMOVED Redundant save_validation_result async/sync pair ---
 # The function above handles saving the detailed results.

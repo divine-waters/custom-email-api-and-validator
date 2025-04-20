@@ -9,12 +9,12 @@ class HubSpotError(Exception):
         details = ""
         if original_exception:
             if hasattr(original_exception, 'response') and original_exception.response is not None:
-                 try:
-                     details = f" - Response: {original_exception.response.text}"
-                 except Exception:
-                     details = " - Response body unavailable"
+                try:
+                    details = f" - Response: {original_exception.response.text}"
+                except Exception:
+                    details = " - Response body unavailable"
             elif hasattr(original_exception, 'body') and original_exception.body is not None:
-                 details = f" - Body: {original_exception.body}"
+                details = f" - Body: {original_exception.body}"
 
         full_message = f"{message}{details}"
         super().__init__(full_message)
@@ -51,7 +51,7 @@ class HubSpotServerError(HubSpotError):
         if original_exception and hasattr(original_exception, 'response') and original_exception.response is not None:
             status_code = original_exception.response.status_code
         elif original_exception and hasattr(original_exception, 'status') and original_exception.status is not None:
-             status_code = original_exception.status
+            status_code = original_exception.status
 
         super().__init__(message, status_code, original_exception)
 
