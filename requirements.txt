@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pyodbc
+requests
+python-dotenv
+hubspot-api-client
+aiohttp
+sqlalchemy  # If you're using it with pyodbc
+pydantic     # FastAPI uses Pydantic for data validation
