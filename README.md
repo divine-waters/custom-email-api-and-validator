@@ -39,11 +39,9 @@ Before you begin, ensure you have met the following requirements:
     ```
 
 3.  **Install dependencies:**
-    *(Assuming you have a `requirements.txt` file)*
     ```bash
     pip install -r requirements.txt
     ```
-    *If you don't have a `requirements.txt` yet, you'll need to create one based on the imports in your Python files (e.g., `requests` for HubSpot client, `pyodbc` or similar for SQL Server, etc.).*
 
 4.  **Database Setup:**
     *   Ensure your SQL Server instance is running.
