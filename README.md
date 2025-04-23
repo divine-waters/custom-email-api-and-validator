@@ -40,13 +40,14 @@ Before you begin, ensure you have met the following requirements:
 
 Follow these steps if you want to clone and run the project with its existing features.
 
-1. **Clone the repository:**
+1.  **Clone the repository:**
 
-   ```bash
-   git clone <your-repository-url>
-   cd custom-email-api
+    ```bash
+    git clone <your-repository-url>
+    cd custom-email-api
+    ```
 
-2. **Create a virtual environment (recommended):**
+2.  **Create a virtual environment (recommended):**
 
     ```bash
     python -m venv venv
@@ -56,22 +57,21 @@ Follow these steps if you want to clone and run the project with its existing fe
     source venv/bin/activate
     ```
 
-3. **Install dependencies:**
+3.  **Install dependencies:**
 
     ```bash
     pip install -r requirements.txt
     ```
 
-4. **Database Setup:**
-    * Ensure your SQL Server instance is running and accessible via Windows Authentication.
-    * Decide on a database name (e.g., `hubspot_email_validation`). You will configure this name in the `.env` file.
-    * **Run the database migrations script** to create the necessary tables (`contacts` and `validation_results`):
+4.  **Database Setup:**
+    *   Ensure your SQL Server instance is running and accessible via Windows Authentication.
+    *   Decide on a database name (e.g., `hubspot_email_validation`). You will configure this name in the `.env` file.
+    *   **Run the database migrations script** to create the necessary tables (`contacts` and `validation_results`):
 
         ```bash
         python migrations/migrations.py
         ```
-
-    * This script connects using the settings defined in your `.env` file (see Configuration below) and creates the tables if they don't exist. The `create_validation_table.sql` file is for reference only.
+    *   This script connects using the settings defined in your `.env` file (see Configuration below) and creates the tables if they don't exist. The `create_validation_table.sql` file is for reference only.
 
 ## 🔑 Configuration
 
@@ -212,20 +212,6 @@ The following endpoints are available. Examples assume the API is running locall
         Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:8000/upsert-contact?email=another.lead@company.com"
         ```
 
-### Syncing HubSpot Contacts
-
-To fetch contacts from HubSpot and insert/update them in your database, run the synchronization script:
-
-```bash
-python sync_contacts.py
-```
-
-This script will:
-
-* Call the HubSpot API via hubspot_client.contacts_client.fetch_hubspot_contacts().
-* Pass the retrieved contacts to db.email_dao.insert_contacts() for database insertion.
-* Log activities using the configured logger.
-
 ### ✅ Email Validation
 
 This API performs several checks to validate email addresses and assess their quality. The validation logic is orchestrated asynchronously in `services/validation_orchestrator.py` and utilizes individual, specialized checkers found in the `validators/` directory.
@@ -257,6 +243,8 @@ This integrated approach ensures that email validation is a core part of contact
 
 ### 📁 Project Structure
 
+This diagram shows the core source code structure. Generated directories like __pycache__ or the venv directory are omitted for clarity. The `scaffold.ps1` and `scaffold.sh` scripts are utilities for project generation and not part of the running application's structure.
+
 ```plaintext
 custom-email-api/
 ├── .env                     # 🔒 Local environment variables (DO NOT COMMIT)
@@ -265,7 +253,8 @@ custom-email-api/
 ├── main.py                  # ▶️ FastAPI application entry point (API endpoints)
 ├── README.md                # 📖 This file
 ├── requirements.txt         # 📋 Python dependencies
-├── scaffold.ps1             # 🏗️ [Optional] Project scaffolding script
+├── scaffold.ps1             # 🏗️ [Utility] Project scaffolding script (PowerShell)
+├── scaffold.sh              # 🏗️ [Utility] Project scaffolding script (Bash)
 ├── sync_contacts.py         # ▶️ Standalone script for bulk syncing contacts (if still used)
 │
 ├── db/                      # 🗄️ Database interaction modules
@@ -297,7 +286,7 @@ custom-email-api/
 │   ├── mx_checker.py        # 📧 Checks for valid MX DNS records
 │   └── __init__.py
 │
-└── venv/                    # 🌱 Virtual environment directory (if used)
+└── venv/                    # 🌱 Virtual environment directory (Created by user, ignored by Git)
 ```
 
 ## Project Scaffolding (Optional - Starting a New Project)
@@ -319,9 +308,9 @@ These scripts will:
 2. Open PowerShell in that directory.
 3. Run the script:
 
-    ```bash
+    ```powershell
     .\scaffold.ps1
-   ```
+    ```
 
    _(You might need to adjust your execution policy: Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass)*
 
