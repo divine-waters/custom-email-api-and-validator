@@ -212,10 +212,12 @@ async def upsert_contact_endpoint(email: str, firstname: str = "", lastname: str
     # 2. Prepare data for HubSpot create/update
     hubspot_properties = {
         # Use keys defined in hubspot_client.VALIDATION_PROPERTIES
-        "email_valid_mx": str(validation_result["mx_valid"]), # Booleans as strings for HubSpot booleancheckbox
-        "email_is_disposable": str(validation_result["is_disposable"]),
-        "email_is_blacklisted": str(validation_result["is_blacklisted"]),
-        "email_is_free_provider": str(validation_result["is_free_provider"]),
+        # --- MODIFIED HERE: Convert boolean to lowercase string ---
+        "email_valid_mx": str(validation_result["mx_valid"]).lower(),
+        "email_is_disposable": str(validation_result["is_disposable"]).lower(),
+        "email_is_blacklisted": str(validation_result["is_blacklisted"]).lower(),
+        "email_is_free_provider": str(validation_result["is_free_provider"]).lower(),
+        # --- END MODIFICATION ---
         "email_validation_status": validation_result["status"],
         "email_validation_message": validation_result["message"]
     }

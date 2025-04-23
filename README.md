@@ -183,9 +183,9 @@ The following endpoints are available. Examples assume the API is running locall
         ```
   * **PowerShell Example:**
         ```powershell
-        # Replace 12345 with the actual HubSpot Contact ID
+        # Replace 123456789101 with the actual HubSpot Contact ID
         # Replace contact@domain.com with the email to validate for that contact
-        Invoke-RestMethod -Method PATCH -Uri "http://127.0.0.1:8000/validate-email-and-update-hubspot/12345?email=contact@domain.com"
+        Invoke-RestMethod -Method PATCH -Uri "http://127.0.0.1:8000/validate-email-and-update-hubspot/123456789101?email=contact@domain.com"
         ```
 
 * **`POST /upsert-contact`**
