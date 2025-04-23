@@ -40,38 +40,47 @@ Before you begin, ensure you have met the following requirements:
 
 Follow these steps if you want to clone and run the project with its existing features.
 
-1.  **Clone the repository:**
+1. **Clone the repository:**
 
     ```bash
     git clone <your-repository-url>
     cd custom-email-api
     ```
 
-2.  **Create a virtual environment (recommended):**
+2. **Create a virtual environment (recommended):**
 
     ```bash
     python -m venv venv
-    # On Windows
+    ```
+
+    * On Windows
+
+    ```powershell
     .\venv\Scripts\activate
-    # On macOS/Linux
+    ```
+
+    * On macOS/Linux
+
+    ```bash
     source venv/bin/activate
     ```
 
-3.  **Install dependencies:**
+3. **Install dependencies:**
 
     ```bash
     pip install -r requirements.txt
     ```
 
-4.  **Database Setup:**
-    *   Ensure your SQL Server instance is running and accessible via Windows Authentication.
-    *   Decide on a database name (e.g., `hubspot_email_validation`). You will configure this name in the `.env` file.
-    *   **Run the database migrations script** to create the necessary tables (`contacts` and `validation_results`):
+4. **Database Setup:**
+    * Ensure your SQL Server instance is running and accessible via Windows Authentication.
+    * Decide on a database name (e.g., `hubspot_email_validation`). You will configure this name in the `.env` file.
+    * **Run the database migrations script** to create the necessary tables (`contacts` and `validation_results`):
 
         ```bash
         python migrations/migrations.py
         ```
-    *   This script connects using the settings defined in your `.env` file (see Configuration below) and creates the tables if they don't exist. The `create_validation_table.sql` file is for reference only.
+
+    * This script connects using the settings defined in your `.env` file (see Configuration below) and creates the tables if they don't exist. The `create_validation_table.sql` file is for reference only.
 
 ## 🔑 Configuration
 
@@ -243,7 +252,7 @@ This integrated approach ensures that email validation is a core part of contact
 
 ### 📁 Project Structure
 
-This diagram shows the core source code structure. Generated directories like __pycache__ or the venv directory are omitted for clarity. The `scaffold.ps1` and `scaffold.sh` scripts are utilities for project generation and not part of the running application's structure.
+This diagram shows the core source code structure. Generated directories like `__pycache__` or the venv directory are omitted for clarity. The `scaffold.ps1` and `scaffold.sh` scripts are utilities for project generation and not part of the running application's structure.
 
 ```plaintext
 custom-email-api/
