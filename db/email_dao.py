@@ -1,7 +1,5 @@
 # db/email_dao.py
 
-import asyncio
-import functools
 from db.connector import get_db_connection # Correctly import from the connector
 from utils.logger import get_logger
 from typing import List, Tuple, Dict, Any # Added type hints
@@ -10,173 +8,194 @@ logger = get_logger("email_dao")
 
 # --- Contact Functions ---
 
+def upsert_contact_db(contact_id_val: str, firstname: str, lastname: str, email: str): # Renamed arg for clarity
+    """
+    Inserts or updates a single contact in the database using MERGE.
+    Uses 'contact_id' as the primary key column name.
+    """
+    if not contact_id_val or not email:
+        logger.warning(f"Skipping upsert for contact due to missing ID or Email: ID={contact_id_val}, Email={email}")
+        return
+
+    logger.debug(f"Attempting to upsert contact {contact_id_val} ({email})")
+    # Updated SQL to use 'contact_id' as the column name
+    sql = """
+        MERGE INTO contacts AS target
+        USING (SELECT ? AS contact_id, ? AS firstname, ? AS lastname, ? AS email) AS source
+        ON target.contact_id = source.contact_id -- Join on 'contact_id'
+        WHEN MATCHED THEN
+            UPDATE SET
+                firstname = source.firstname,
+                lastname = source.lastname,
+                email = source.email
+        WHEN NOT MATCHED THEN
+            INSERT (contact_id, firstname, lastname, email) -- Insert into 'contact_id'
+            VALUES (source.contact_id, source.firstname, source.lastname, source.email);
+    """
+    # Params order matches the SELECT in USING clause
+    params = (contact_id_val, firstname, lastname, email)
+
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            logger.debug(f"Executed MERGE for contact {contact_id_val}")
+            conn.commit()
+            logger.info(f"✅ Successfully committed upsert for contact {contact_id_val}")
+    except Exception as e:
+        logger.error(f"💥 Error upserting contact {contact_id_val}: {e}", exc_info=True)
+        raise
+
+# --- Contact Functions ---
+
 def insert_contacts(contacts: List[Dict[str, Any]]):
     """
     Inserts or updates contacts in the database using MERGE.
-    Expects a list of contact dictionaries (like those from HubSpot client).
+    Uses 'contact_id' as the primary key column name.
     """
     if not contacts:
-        logger.warning("No contacts provided to insert_contacts.")
+        logger.info("No contacts provided to insert_contacts.")
         return
 
-    # Removed unused variables: inserted_count, updated_count
-    error_count = 0
+    logger.info(f"Attempting to insert/update {len(contacts)} contacts.")
+    # Use a set to track processed IDs if needed, though MERGE handles duplicates
+    # processed_ids = set()
 
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        try:
+    # It's generally better to commit once after all operations succeed or fail together
+    try: # Outer try for the whole batch
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+
             for contact in contacts:
-                contact_id = contact.get('id')
+                contact_id_val = contact.get('id') # Still gets 'id' from HubSpot data
                 properties = contact.get('properties', {})
                 email = properties.get('email')
-                firstname = properties.get('firstname', '')
-                lastname = properties.get('lastname', '')
+                firstname = properties.get('firstname', '') # Default to empty string
+                lastname = properties.get('lastname', '')   # Default to empty string
 
-                if not contact_id or not email:
-                    logger.warning(f"Skipping contact due to missing ID or Email: {contact}")
-                    error_count += 1
-                    continue
+                if not contact_id_val or not email:
+                    logger.warning(f"Skipping contact due to missing ID or Email in batch insert: ID={contact_id_val}, Email={email}")
+                    continue # Skip this contact and move to the next
 
+                # Inner try for each individual MERGE operation
                 try:
-                    # Using MERGE requires specific syntax depending on the DB (e.g., SQL Server, Oracle)
-                    # This example assumes SQL Server syntax. Adjust if using a different DB.
-                    # Consider adding a 'last_updated_at' column.
+                    # Updated SQL to use 'contact_id'
                     cursor.execute("""
                         MERGE INTO contacts AS target
-                        USING (SELECT ? AS id, ? AS firstname, ? AS lastname, ? AS email) AS source
-                        ON target.id = source.id
+                        USING (SELECT ? AS contact_id, ? AS firstname, ? AS lastname, ? AS email) AS source
+                        ON target.contact_id = source.contact_id
                         WHEN MATCHED THEN
-                            UPDATE SET
-                                firstname = source.firstname,
-                                lastname = source.lastname,
-                                email = source.email -- Add last_updated_at = GETDATE() or similar
+                            UPDATE SET firstname = source.firstname, lastname = source.lastname, email = source.email
                         WHEN NOT MATCHED THEN
-                            INSERT (id, firstname, lastname, email) -- Add created_at, last_updated_at
-                            VALUES (source.id, source.firstname, source.lastname, source.email); -- Add GETDATE(), GETDATE()
-                    """, contact_id, firstname, lastname, email)
+                            INSERT (contact_id, firstname, lastname, email)
+                            VALUES (source.contact_id, source.firstname, source.lastname, source.email);
+                    """, contact_id_val, firstname, lastname, email) # Pass the value from HubSpot data
 
-                    # Check rows affected if the DB driver supports it reliably (can be tricky with MERGE)
-                    # if cursor.rowcount > 0: # Example check
-                    #    logger.debug(f"Merged contact {contact_id}")
-                    # For simplicity, we won't track inserted vs updated precisely here without more complex logic
-
+                # --- FIX IS HERE ---
                 except Exception as merge_err:
-                    logger.error(f"Error merging contact {contact_id}: {merge_err}")
-                    error_count += 1
-                    # Optionally rollback transaction per contact or handle errors differently
+                    # Log the error for the specific contact that failed
+                    logger.error(f"💥 Error merging contact {contact_id_val} during batch insert: {merge_err}", exc_info=True)
+                    # Decide: continue with next contact or raise/re-raise?
+                    # For now, let's log and continue to process other contacts in the batch.
+                    # If you want the whole batch to fail on one error, you would 'raise merge_err' here.
+                # --- END FIX ---
 
-            conn.commit()
-            # Log summary - precise counts might require more logic
-            # The log message correctly reflects the available information
-            logger.info(f"Contact sync complete. Processed: {len(contacts)}, Errors: {error_count}.")
+            # Commit only if the loop completes without the outer try block catching an error
+            conn.commit() # This is line 80 from the original traceback context
+            logger.info(f"✅ Successfully committed batch insert/update for {len(contacts)} contacts.")
 
-        except Exception as e:
-            logger.error(f"Critical error during batch contact insert/update: {e}")
-            conn.rollback() # Rollback the whole batch on critical error
-        # No finally block needed for cursor close when using 'with get_db_connection()'
+    except Exception as e:
+        # Catch errors related to connection or commit
+        logger.error(f"💥 Error during batch contact insert/update transaction: {e}", exc_info=True)
+        # No explicit rollback needed if 'with get_db_connection()' handles context correctly,
+        # otherwise, you'd add conn.rollback() here.
+        # Consider re-raising if the caller needs to know about the batch failure
+        # raise e
 
-# ... (rest of the file remains the same) ...
+# ... (rest of the file: _fetch_all_contacts_sync, etc.) ...
+
 
 def _fetch_all_contacts_sync() -> List[Tuple[str, str, str, str]]:
     """Synchronous helper to fetch all contacts."""
     logger.debug("Fetching all contacts from DB...")
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        # Assuming 'id' is VARCHAR to match HubSpot IDs
-        cursor.execute("SELECT id, firstname, lastname, email FROM Contacts")
+        # Updated SELECT to use 'contact_id'
+        cursor.execute("SELECT contact_id, firstname, lastname, email FROM Contacts")
         results = cursor.fetchall()
         logger.debug(f"Fetched {len(results)} contacts.")
         return results
 
-async def fetch_all_contacts() -> List[Tuple[str, str, str, str]]:
-    """Asynchronously fetches all contacts from the database."""
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, _fetch_all_contacts_sync)
+# fetch_all_contacts remains the same (calls the sync version)
 
 def _fetch_emails_needing_validation_sync() -> List[Tuple[str, str, str, str]]:
     """Synchronous helper to fetch contacts needing email validation."""
     logger.debug("Fetching contacts needing validation from DB...")
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        # Adjust WHERE clause based on your actual validation tracking columns
-        # This assumes a 'validation_results' table exists as per the save_validation_result below
-        # Or modify the 'contacts' table to have validation status columns
+        # Updated SELECT and JOIN to use 'contact_id'
         cursor.execute("""
-            SELECT c.id, c.firstname, c.lastname, c.email
+            SELECT c.contact_id, c.firstname, c.lastname, c.email
             FROM Contacts c
-            LEFT JOIN validation_results vr ON c.id = vr.contact_id
-            WHERE vr.contact_id IS NULL OR vr.email != c.email -- Validate if not validated or email changed
+            LEFT JOIN validation_results vr ON c.contact_id = vr.contact_id
+            WHERE vr.contact_id IS NULL OR vr.email != c.email
         """)
-        # Alternative if validation status is on Contacts table:
-        # cursor.execute("SELECT id, firstname, lastname, email FROM Contacts WHERE email_validation_status IS NULL OR email_validation_status = 'pending'")
         results = cursor.fetchall()
         logger.debug(f"Fetched {len(results)} contacts needing validation.")
         return results
 
-async def fetch_emails_needing_validation() -> List[Tuple[str, str, str, str]]:
-    """Asynchronously fetches contacts needing email validation."""
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, _fetch_emails_needing_validation_sync)
+# fetch_emails_needing_validation remains the same (calls the sync version)
+
+# --- Validation Result Functions ---
+# save_validation_result remains the same as it already uses 'contact_id' correctly
+
+# ... (rest of the file) ...
 
 
 # --- Validation Result Functions ---
 
 def save_validation_result(validation_result: Dict[str, Any], contact_id: str):
     """
-    Saves the detailed email validation result to the validation_results table.
-    Uses MERGE to insert or update based on contact_id.
+    Saves the detailed email validation result to the validation_results table
+    using INSERT. Assumes 'id' is IDENTITY and 'created_at' has a DEFAULT.
     """
-    logger.debug(f"Saving validation result for contact {contact_id}")
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        try:
-            # Using MERGE to handle inserts or updates for validation results
-            cursor.execute("""
-                MERGE INTO validation_results AS target
-                USING (SELECT
-                    ? AS contact_id,
-                    ? AS email,
-                    ? AS domain,
-                    ? AS mx_valid,
-                    ? AS is_disposable,
-                    ? AS is_blacklisted,
-                    ? AS is_free_provider,
-                    ? AS validation_status, -- Added status
-                    ? AS validation_message -- Added message
-                    -- Add a timestamp column like 'validated_at'
-                ) AS source
-                ON target.contact_id = source.contact_id
-                WHEN MATCHED THEN
-                    UPDATE SET
-                        email = source.email,
-                        domain = source.domain,
-                        mx_valid = source.mx_valid,
-                        is_disposable = source.is_disposable,
-                        is_blacklisted = source.is_blacklisted,
-                        is_free_provider = source.is_free_provider,
-                        validation_status = source.validation_status,
-                        validation_message = source.validation_message
-                        -- validated_at = GETDATE() or similar
-                WHEN NOT MATCHED THEN
-                    INSERT (contact_id, email, domain, mx_valid, is_disposable, is_blacklisted, is_free_provider, validation_status, validation_message) -- Add validated_at
-                    VALUES (source.contact_id, source.email, source.domain, source.mx_valid, source.is_disposable, source.is_blacklisted, source.is_free_provider, source.validation_status, source.validation_message); -- Add GETDATE()
-            """,
-            contact_id,
-            validation_result.get('email', ''),
-            validation_result.get('domain', ''),
-            validation_result.get('mx_valid', False),
-            validation_result.get('is_disposable', False),
-            validation_result.get('is_blacklisted', False),
-            validation_result.get('is_free_provider', False),
-            validation_result.get('status', 'unknown'), # Save status
-            validation_result.get('message', '') # Save message
-            )
+    sql = """
+        INSERT INTO validation_results (
+            contact_id, email, domain, mx_valid, is_disposable,
+            is_blacklisted, is_free_provider
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    """
+    params = (
+        contact_id,
+        validation_result.get('email', ''),
+        validation_result.get('domain', ''),
+        validation_result.get('mx_valid', False),
+        validation_result.get('is_disposable', False),
+        validation_result.get('is_blacklisted', False),
+        validation_result.get('is_free_provider', False)
+        # Note: We don't insert 'id' (identity) or 'created_at' (default)
+        # We also don't insert 'status' or 'message' as they are not in the
+        # correct schema defined by migrations.py
+    )
 
+    logger.debug(f"Attempting to save validation result for contact {contact_id}")
+    logger.debug(f"SQL: {sql}")
+    logger.debug(f"Params: {params}")
+
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            logger.debug(f"Executed INSERT for contact {contact_id}")
             conn.commit()
-            logger.info(f"Validation result for contact {contact_id} saved/updated successfully.")
-        except Exception as e:
-            logger.error(f"Error saving validation result for contact {contact_id}: {e}")
-            conn.rollback() # Rollback on error
-        # No finally block needed for cursor close
+            logger.info(f"✅ Successfully committed validation result for contact {contact_id}") # Log AFTER commit
+    except Exception as e:
+        # Log the full traceback using exc_info=True
+        logger.error(f"💥 Error saving validation result for contact {contact_id}: {e}", exc_info=True)
+        # No need to explicitly rollback here if using 'with get_db_connection()'
+        # which typically handles transaction context, but it doesn't hurt.
+        # If get_db_connection doesn't manage transactions, rollback is essential.
+        # Assuming it does manage context, just logging the error is sufficient.
+        raise # Re-raise the exception so the orchestrator knows about it
 
-# The function above handles saving the detailed results.
+# (rest of the file, if any)

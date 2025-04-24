@@ -1,4 +1,6 @@
-# ️ SQL Server | 🟠 HubSpot | 🚀 FastAPI | 🐍 Python
+# HubSend: Validate. Sync. Send Smarter from HubSpot
+
+## ️ SQL Server | 🟠 HubSpot | 🚀 FastAPI | 🐍 Python
 
 ## Custom Email API & HubSpot Contact Sync 🔄
 
@@ -77,7 +79,7 @@ Follow these steps if you want to clone and run the project with its existing fe
     * **Run the database migrations script** to create the necessary tables (`contacts` and `validation_results`):
 
         ```bash
-        python migrations/migrations.py
+        python -m migrations.migrations
         ```
 
     * This script connects using the settings defined in your `.env` file (see Configuration below) and creates the tables if they don't exist. The `create_validation_table.sql` file is for reference only.

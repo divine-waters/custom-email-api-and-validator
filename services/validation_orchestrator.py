@@ -1,8 +1,13 @@
 # services/validation_orchestrator.py
 
 import asyncio
-import functools # Needed for run_in_executor
-from db.email_dao import save_validation_result as db_save_validation_result
+import functools
+# --- MODIFIED IMPORTS ---
+from db.email_dao import (
+    save_validation_result as db_save_validation_result,
+    upsert_contact_db as db_upsert_contact # Import the upsert function
+)
+# --- END MODIFIED IMPORTS ---
 # Import HubSpot client function
 from hubspot_client.contacts_client import update_contact_with_validation_result
 # Import custom HubSpot exceptions
@@ -104,121 +109,131 @@ async def perform_email_validation_checks(email: str) -> dict:
     logger.info(f"Validation result for {email}: Status='{status}', Message='{message}'")
     return validation_details
 
-
-async def validate_and_sync(email: str, contact_id: str = None) -> dict:
+# --- MODIFIED validate_and_sync ---
+async def validate_and_sync(contact_data: dict) -> dict:
     """
-    Orchestrates email validation, saves results to DB, and updates HubSpot.
+    Orchestrates email validation, saves contact & results to DB, and updates HubSpot.
 
     Args:
-        email (str): The email address to validate.
-        contact_id (str, optional): The HubSpot contact ID. If provided,
-                                    results are saved to DB and HubSpot updated.
+        contact_data (dict): A dictionary containing contact details, expected keys:
+                             'id', 'email', 'firstname', 'lastname'.
 
     Returns:
         dict: The detailed validation result dictionary, potentially with a 'sync_error' key.
     """
+    # --- Extract data - handle potential missing keys gracefully ---
+    contact_id = contact_data.get('id')
+    email = contact_data.get('email')
+    firstname = contact_data.get('firstname', '') # Default to empty string
+    lastname = contact_data.get('lastname', '')   # Default to empty string
+
+    # --- TEMPORARY LOGGING: Check received arguments ---
+    logger.debug(f"validate_and_sync received: contact_id='{contact_id}', email='{email}', firstname='{firstname}', lastname='{lastname}'")
+    # --- END TEMPORARY LOGGING ---
+
+    if not contact_id or not email:
+        logger.error(f"💥 Invalid contact data received in validate_and_sync: {contact_data}")
+        # Return an error structure or raise an exception
+        return {
+             "email": email, "status": "error",
+             "message": "Missing contact ID or email for sync process."
+         }
+
     sync_error_message = None # Initialize error message
 
     try:
-        logger.info(f"🚀 Starting validation and sync for {email} (Contact ID: {contact_id or 'N/A'})")
+        logger.info(f"🚀 Starting validation and sync for {email} (Contact ID: {contact_id})")
 
         # 1. Perform all validation checks
         validation_result = await perform_email_validation_checks(email)
 
-        # 2. Save to DB and Update HubSpot (only if contact_id is provided)
-        if contact_id:
-            loop = asyncio.get_running_loop()
-            # db_saved = False # REMOVED - Unused variable
-            # hubspot_updated = False # REMOVED - Unused variable
+        # 2. Save Contact to DB, Save Validation to DB, Update HubSpot
+        loop = asyncio.get_running_loop()
 
-            # --- Try DB Save ---
-            try:
-                logger.debug(f"Attempting DB save for contact {contact_id}")
-                # Run the synchronous DB function in an executor
-                db_save_func = functools.partial(db_save_validation_result, validation_result, contact_id)
-                await loop.run_in_executor(None, db_save_func)
-                logger.info(f"💾 Validation result saved to DB for contact {contact_id}")
-                # db_saved = True # REMOVED - Unused assignment
-            except Exception as db_err:
-                logger.error(f"💥 Error saving validation result to DB for contact {contact_id}: {db_err}", exc_info=True)
-                sync_error_message = f"DB Save Failed: {db_err}"
-                # Continue to HubSpot update attempt even if DB save fails? Yes.
+        # --- Try Contact DB Upsert ---
+        try:
+            logger.debug(f"Attempting Contact DB upsert via executor for contact {contact_id}")
+            # Use functools.partial to pass arguments to the sync function
+            contact_upsert_func = functools.partial(db_upsert_contact, contact_id, firstname, lastname, email)
+            await loop.run_in_executor(None, contact_upsert_func)
+            logger.info(f"Contact DB upsert task completed for contact {contact_id} (check DAO logs for commit status).")
+        except Exception as contact_db_err:
+            logger.error(f"💥 Error during Contact DB upsert execution for contact {contact_id}: {contact_db_err}", exc_info=True)
+            sync_error_message = f"Contact DB Upsert Failed: {contact_db_err}"
+            # Decide if you want to stop here or continue with validation save/HubSpot update
+            # For now, we'll record the error and continue
 
-            # --- Try HubSpot Update ---
-            try:
-                logger.debug(f"Attempting HubSpot update for contact {contact_id}")
-                # Prepare data for HubSpot - use keys defined in hubspot_client.VALIDATION_PROPERTIES
-                # --- MODIFIED HERE ---
-                hubspot_update_data = {
-                    # Convert Python bool to lowercase string "true" or "false"
-                    "email_valid_mx": str(validation_result["mx_valid"]).lower(),
-                    "email_is_disposable": str(validation_result["is_disposable"]).lower(),
-                    "email_is_blacklisted": str(validation_result["is_blacklisted"]).lower(),
-                    "email_is_free_provider": str(validation_result["is_free_provider"]).lower(),
-                    # Status and message are already strings
-                    "email_validation_status": validation_result["status"],
-                    "email_validation_message": validation_result["message"]
-                }
-                # --- END MODIFICATION ---
+        # --- Try Validation Result DB Save ---
+        try:
+            logger.debug(f"Attempting Validation Result DB save via executor for contact {contact_id}")
+            db_save_func = functools.partial(db_save_validation_result, validation_result, contact_id)
+            await loop.run_in_executor(None, db_save_func)
+            logger.info(f"Validation Result DB save task completed for contact {contact_id} (check DAO logs for commit status).")
+        except Exception as db_err:
+            logger.error(f"💥 Error during Validation Result DB save execution for contact {contact_id}: {db_err}", exc_info=True)
+            # Append error message if one already exists from contact upsert
+            sync_error_message = f"{sync_error_message}; Validation DB Save Failed: {db_err}" if sync_error_message else f"Validation DB Save Failed: {db_err}"
 
-                # Run the synchronous HubSpot update function in an executor
-                update_func = functools.partial(update_contact_with_validation_result, contact_id, hubspot_update_data)
-                hubspot_api_response = await loop.run_in_executor(None, update_func)
+        # --- Try HubSpot Update ---
+        try:
+            logger.debug(f"Attempting HubSpot update for contact {contact_id}")
+            hubspot_update_data = {
+                "email_valid_mx": str(validation_result["mx_valid"]).lower(),
+                "email_is_disposable": str(validation_result["is_disposable"]).lower(),
+                "email_is_blacklisted": str(validation_result["is_blacklisted"]).lower(),
+                "email_is_free_provider": str(validation_result["is_free_provider"]).lower(),
+                "email_validation_status": validation_result["status"],
+                "email_validation_message": validation_result["message"]
+            }
+            update_func = functools.partial(update_contact_with_validation_result, contact_id, hubspot_update_data)
+            hubspot_api_response = await loop.run_in_executor(None, update_func)
 
+            if hubspot_api_response is None:
+                logger.warning(f"HubSpot update skipped for contact {contact_id} (likely no valid properties).")
+            else:
+                logger.info(f"🔄 HubSpot contact {contact_id} updated successfully.")
 
-                # Check if the update function returned None (e.g., if no valid properties were provided)
-                if hubspot_api_response is None:
-                    logger.warning(f"HubSpot update skipped for contact {contact_id} (likely no valid properties).")
-                    # Decide if this constitutes a sync error
-                    # sync_error_message = sync_error_message or "HubSpot update skipped (no valid properties)." # Append if DB error already exists
-                else:
-                    logger.info(f"🔄 HubSpot contact {contact_id} updated successfully.")
-                    # hubspot_updated = True # REMOVED - Unused assignment
+        # --- Catch Specific HubSpot Errors ---
+        except HubSpotAuthenticationError as e:
+            logger.error(f"🔒 HubSpot Auth Error updating contact {contact_id}: {e}")
+            sync_error_message = f"{sync_error_message}; HubSpot Update Failed (Auth): {e}" if sync_error_message else f"HubSpot Update Failed (Auth): {e}"
+        except HubSpotRateLimitError as e:
+            logger.warning(f"🚦 HubSpot Rate Limit hit updating contact {contact_id}: {e}")
+            sync_error_message = f"{sync_error_message}; HubSpot Update Failed (Rate Limit): {e}" if sync_error_message else f"HubSpot Update Failed (Rate Limit): {e}"
+        except HubSpotNotFoundError as e:
+            logger.warning(f"❓ HubSpot contact {contact_id} not found during update: {e}")
+            sync_error_message = f"{sync_error_message}; HubSpot Update Failed (Not Found): {e}" if sync_error_message else f"HubSpot Update Failed (Not Found): {e}"
+        except HubSpotBadRequestError as e:
+            logger.error(f"📉 HubSpot Bad Request updating contact {contact_id}: {e}")
+            sync_error_message = f"{sync_error_message}; HubSpot Update Failed (Bad Request): {e}" if sync_error_message else f"HubSpot Update Failed (Bad Request): {e}"
+        except HubSpotServerError as e:
+            logger.error(f"💥 HubSpot Server Error updating contact {contact_id}: {e}")
+            sync_error_message = f"{sync_error_message}; HubSpot Update Failed (Server Error): {e}" if sync_error_message else f"HubSpot Update Failed (Server Error): {e}"
+        except HubSpotError as e:
+            logger.error(f"💥 HubSpot API Error updating contact {contact_id}: {e}")
+            sync_error_message = f"{sync_error_message}; HubSpot Update Failed (API Error): {e}" if sync_error_message else f"HubSpot Update Failed (API Error): {e}"
+        except Exception as hs_err:
+            logger.error(f"💥 Unexpected error during HubSpot update for contact {contact_id}: {hs_err}", exc_info=True)
+            sync_error_message = f"{sync_error_message}; HubSpot Update Failed (Unexpected): {hs_err}" if sync_error_message else f"HubSpot Update Failed (Unexpected): {hs_err}"
+        # --- End of HubSpot update try/except ---
 
-            # --- Catch Specific HubSpot Errors ---
-            except HubSpotAuthenticationError as e:
-                logger.error(f"🔒 HubSpot Auth Error updating contact {contact_id}: {e}")
-                sync_error_message = sync_error_message or f"HubSpot Update Failed (Auth): {e}"
-            except HubSpotRateLimitError as e:
-                logger.warning(f"🚦 HubSpot Rate Limit hit updating contact {contact_id}: {e}")
-                sync_error_message = sync_error_message or f"HubSpot Update Failed (Rate Limit): {e}"
-            except HubSpotNotFoundError as e:
-                logger.warning(f"❓ HubSpot contact {contact_id} not found during update: {e}")
-                sync_error_message = sync_error_message or f"HubSpot Update Failed (Not Found): {e}"
-            except HubSpotBadRequestError as e:
-                logger.error(f"📉 HubSpot Bad Request updating contact {contact_id}: {e}")
-                sync_error_message = sync_error_message or f"HubSpot Update Failed (Bad Request): {e}"
-            except HubSpotServerError as e:
-                logger.error(f"💥 HubSpot Server Error updating contact {contact_id}: {e}")
-                sync_error_message = sync_error_message or f"HubSpot Update Failed (Server Error): {e}"
-            except HubSpotError as e: # Catch other specific HubSpot errors
-                logger.error(f"💥 HubSpot API Error updating contact {contact_id}: {e}")
-                sync_error_message = sync_error_message or f"HubSpot Update Failed (API Error): {e}"
-            # --- Catch other unexpected errors during HubSpot update ---
-            except Exception as hs_err:
-                logger.error(f"💥 Unexpected error during HubSpot update for contact {contact_id}: {hs_err}", exc_info=True)
-                sync_error_message = sync_error_message or f"HubSpot Update Failed (Unexpected): {hs_err}"
-            # --- End of HubSpot update try/except ---
-
-            # Add the sync error message to the result if one occurred
-            if sync_error_message:
-                validation_result["sync_error"] = sync_error_message
+        # Add the sync error message to the result if one occurred
+        if sync_error_message:
+            validation_result["sync_error"] = sync_error_message
 
         # Log completion status
         completion_status = "✅ Completed" if not sync_error_message else "⚠️ Completed with errors"
-        logger.info(f"{completion_status} validation and sync for {email} (Contact ID: {contact_id or 'N/A'})")
+        logger.info(f"{completion_status} validation and sync for {email} (Contact ID: {contact_id})")
         return validation_result
 
     except Exception as e:
-        # Catch errors in perform_email_validation_checks or unexpected issues in the orchestration logic itself
+        # Catch errors in perform_email_validation_checks or unexpected issues
         logger.error(f"💥 Unexpected error during validation orchestration for {email}: {str(e)}", exc_info=True)
-        # Return a generic error structure consistent with perform_email_validation_checks
         error_result = {
             "email": email, "domain": "", "mx_valid": False, "is_disposable": False,
             "is_blacklisted": False, "is_free_provider": False,
             "status": "error", "message": f"Orchestration failed: {str(e)}"
         }
-        # Add sync_error if it happened before the orchestration failure
-        if sync_error_message:
+        if sync_error_message: # Include sync errors if they happened before this outer exception
             error_result["sync_error"] = sync_error_message
         return error_result
