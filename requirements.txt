@@ -1,5 +1,8 @@
+# requirements.txt
+
+# Core Application Dependencies
 fastapi
-uvicorn
+uvicorn[standard] # Add [standard] for performance benefits if not already there
 pyodbc
 requests
 python-dotenv
@@ -7,3 +10,9 @@ hubspot-api-client
 aiohttp
 sqlalchemy  # If you're using it with pyodbc
 pydantic     # FastAPI uses Pydantic for data validation
+
+# Testing Dependencies
+pytest
+httpx         # TestClient dependency, good to have explicitly
+pytest-asyncio # If writing async tests
+pytest-mock
