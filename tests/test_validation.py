@@ -54,7 +54,7 @@ async def test_validate_single_email_validation_error(client: TestClient, mocker
 # --- Tests for /validate-hubspot-contacts ---
 """
  async def test_schedule_hubspot_validation_success(client: TestClient, mocker):
-    """Test successful scheduling of background validation tasks."""
+    # Test successful scheduling of background validation tasks.
     # Arrange
     mock_contacts = [
         {"id": "1", "properties": {"email": "one@test.com", "firstname": "F1", "lastname": "L1"}},
