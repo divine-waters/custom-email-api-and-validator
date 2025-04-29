@@ -22,4 +22,11 @@ jobs:
     - name: Install plugin
       run: pip install pytest-github-actions-annotate-failures
 
-    - run: pytest
+    - name: Run pytest with secrets
+      env:
+        HUBSPOT_API_KEY: ${{ secrets.HUBSPOT_API_KEY }}
+        DB_SERVER: ${{ secrets.DB_SERVER}}
+        DB_DATABASE: ${{ secrets.DB_DATABASE }}
+        DB_DRIVER: ${{ secrets.DB_DRIVER}}
+
+      run: pytest
