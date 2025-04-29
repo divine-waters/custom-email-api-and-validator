@@ -2,6 +2,7 @@
 
 # Core Application Dependencies
 fastapi
+aiodns
 uvicorn[standard] # Add [standard] for performance benefits if not already there
 pyodbc
 requests

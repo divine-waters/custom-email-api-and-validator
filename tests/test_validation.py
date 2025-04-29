@@ -21,7 +21,7 @@ async def test_validate_single_email_success(client: TestClient, mocker):
     mock_perform_checks = mocker.patch("main.perform_email_validation_checks", return_value=mock_result)
 
     # Act
-    response = client.post("/validate-email", json={"email": "garrettglick85@email.com"})
+    response = client.post("/validate-email", json={"email": "garrettglick85@gmail.com"})
 
     # Assert
     assert response.status_code == status.HTTP_200_OK
