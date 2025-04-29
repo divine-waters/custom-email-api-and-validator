@@ -12,6 +12,7 @@ hubspot-api-client
 aiohttp
 sqlalchemy  # If you're using it with pyodbc
 pydantic     # FastAPI uses Pydantic for data validation
+pydantic[email]
 
 # Testing Dependencies
 pytest
